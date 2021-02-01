@@ -76,6 +76,10 @@ namespace extOSC
 			}
 		}
 
+		public bool _useConsoleRecv = false;
+
+		public int _maxInvokePPU = 64;
+
 		#endregion
 
 		#region Private Vars
@@ -108,6 +112,8 @@ namespace extOSC
 
 		private readonly Queue<IOSCPacket> _packets = new Queue<IOSCPacket>();
 
+		private readonly Queue<IOSCPacket> _workPackets = new Queue<IOSCPacket>();
+
 		private readonly List<IOSCBind> _messageBindings = new List<IOSCBind>();
 
 		private readonly Stack<IOSCBind> _messageBindStack = new Stack<IOSCBind>();
@@ -134,19 +140,39 @@ namespace extOSC
 		{
 			if (!IsStarted || !_receiverBackend.IsRunning) return;
 
+			int invokeCount = 0;
 			lock (_lock)
 			{
 				while (_packets.Count > 0)
 				{
 					var packet = _packets.Dequeue();
+					_workPackets.Enqueue(packet);
+					++invokeCount;
 
-					if (MapBundle != null)
-						MapBundle.Map(packet);
+					if (_useConsoleRecv)
+					{
+						OSCConsole.Received(this, packet);
+					}
 
-					OSCConsole.Received(this, packet);
-
-					InvokePacket(packet);
+					if (invokeCount >= _maxInvokePPU)
+					{
+						if (_useConsoleRecv)
+						{
+							Debug.LogWarning($"Drop Packet Count {_packets.Count}");
+						}
+						_packets.Clear();
+					}
 				}
+			}
+
+			while (_workPackets.Count > 0)
+			{
+				var packet = _workPackets.Dequeue();
+
+				if (MapBundle != null)
+					MapBundle.Map(packet);
+
+				InvokePacket(packet);
 			}
 		}
 
@@ -202,7 +228,10 @@ namespace extOSC
 			}
 
 			if (!_messageBindings.Contains(bind))
+			{
 				_messageBindings.Add(bind);
+				OSCUtilities.MeltAllCache();
+			}
 		}
 
 		public OSCBind Bind(string address, UnityAction<OSCMessage> callback)
@@ -338,6 +367,7 @@ namespace extOSC
 						bind.Callback.Invoke(message);
 				}
 			}
+			OSCUtilities.FreezeCache(message.Address);
 
 			_processMessage = false;
 

@@ -16,11 +16,42 @@ using System.Reflection;
 
 namespace extOSC
 {
+	public class OSCCachedInfo
+    {
+		public bool NeedUpdate;
+		private List<string> CachedBindAddressList;
+
+		public OSCCachedInfo()
+        {
+			NeedUpdate = true;
+			CachedBindAddressList = new List<string>();
+        }
+
+		public void AddCache(string bindAddress)
+        {
+			if (NeedUpdate && !HitCache(bindAddress))
+            {
+				CachedBindAddressList.Add(bindAddress);
+			}
+		}
+
+		public bool HitCache(string bindAddress)
+        {
+			return CachedBindAddressList.Contains(bindAddress);
+        }
+
+		public void ClearCache()
+        {
+			NeedUpdate = true;
+			CachedBindAddressList.Clear();
+        }
+    }
+
 	public static class OSCUtilities
 	{
 		#region Static Private Vars
 
-		private static readonly Dictionary<string, List<string>> _cachedAddress = new Dictionary<string, List<string>>();
+		private static readonly Dictionary<string, OSCCachedInfo> _cachedInfo = new Dictionary<string, OSCCachedInfo>();
 
 		#endregion
 
@@ -64,28 +95,63 @@ namespace extOSC
 			return outputMax < outputMin ? Mathf.Clamp(outputValue, outputMax, outputMin) : Mathf.Clamp(outputValue, outputMin, outputMax);
 		}
 
+		public static void MeltAllCache()
+		{
+			foreach (var reverseCache in _cachedInfo.Values)
+            {
+				reverseCache.NeedUpdate = true;
+            }
+		}
+
+		public static void FreezeCache(string messageAddress)
+        {
+			if (_cachedInfo.ContainsKey(messageAddress))
+            {
+				_cachedInfo[messageAddress].NeedUpdate = false;
+            }
+        }
+
 		public static bool CompareAddresses(string bindAddress, string messageAddress)
 		{
-			if (bindAddress == "*")
+			if (!_cachedInfo.ContainsKey(messageAddress))
+            {
+				_cachedInfo[messageAddress] = new OSCCachedInfo();
+			}
+
+			var info = _cachedInfo[messageAddress];
+			if (info.HitCache(bindAddress))
+            {
 				return true;
+            }
 
-			if (!bindAddress.Contains("*"))
-				return bindAddress == messageAddress;
-
-			if (!_cachedAddress.ContainsKey(bindAddress))
-				_cachedAddress.Add(bindAddress, new List<string>());
-
-			if (_cachedAddress[bindAddress].Contains(messageAddress))
-				return true;
-
-			var regular = new Regex("^" + bindAddress.Replace("*", "(.+)") + "$");
-			if (regular.IsMatch(messageAddress))
-			{
-				_cachedAddress[bindAddress].Add(messageAddress);
-				return true;
+			if (info.NeedUpdate)
+            {
+				if (bindAddress == messageAddress)
+				{
+					info.AddCache(bindAddress);
+					return true;
+				}
+				else if (bindAddress.Contains("*"))
+                {
+					var regular = new Regex("^" + bindAddress.Replace("*", "(.+)") + "$");
+					if (regular.IsMatch(messageAddress))
+					{
+						info.AddCache(bindAddress);
+						return true;
+					}
+				}
 			}
 
 			return false;
+		}
+
+		public static void ClearCache()
+        {
+			foreach (var info in _cachedInfo.Values)
+			{
+				info.ClearCache();
+			}
+			_cachedInfo.Clear();
 		}
 
 		public static byte[] StructToByte<T>(T structure) where T : struct

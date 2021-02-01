@@ -36,6 +36,10 @@ namespace extOSC.Editor
 
 		private static MethodInfo _updateMethod;
 
+		private static readonly GUIContent _useConsoleRecvContent = new GUIContent("Use Console Recv:");
+
+		private static readonly GUIContent _maxInvokePPUContent = new GUIContent("Max Invoke PPU:", "Max Invoke Packet Per Update");
+
 		#endregion
 
 		#region Private Vars
@@ -53,6 +57,10 @@ namespace extOSC.Editor
 		private SerializedProperty _mapBundleProperty;
 
 		private SerializedProperty _closeOnPauseProperty;
+
+		private SerializedProperty _useConsoleRecvProperty;
+
+		private SerializedProperty _maxInvokePPUProperty;
 
 		private OSCReceiver _receiver;
 
@@ -76,6 +84,9 @@ namespace extOSC.Editor
 			_workInEditorProperty = serializedObject.FindProperty("_workInEditor");
 			_mapBundleProperty = serializedObject.FindProperty("_mapBundle");
 			_closeOnPauseProperty = serializedObject.FindProperty("_closeOnPause");
+
+			_useConsoleRecvProperty = serializedObject.FindProperty("_useConsoleRecv");
+			_maxInvokePPUProperty = serializedObject.FindProperty("_maxInvokePPU");
 
 			EditorApplication.update += ReceiverEditorUpdate;
 
@@ -172,6 +183,21 @@ namespace extOSC.Editor
 					if (Application.isPlaying) InGameControls();
 					else InEditorControls();
 				}
+
+				GUI.color = _defaultColor;
+			}
+
+			// OPTIMIZE BLOCK
+			using (new GUILayout.VerticalScope(OSCEditorStyles.Box))
+			{
+				EditorGUILayout.LabelField("Optimize Settings:", EditorStyles.boldLabel);
+				using (new GUILayout.VerticalScope(OSCEditorStyles.Box))
+				{
+					EditorGUILayout.PropertyField(_useConsoleRecvProperty, _useConsoleRecvContent);
+					EditorGUILayout.PropertyField(_maxInvokePPUProperty, _maxInvokePPUContent);
+				}
+
+				GUI.color = _defaultColor;
 			}
 
 			if (EditorGUI.EndChangeCheck())
